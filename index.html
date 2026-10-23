@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Half-frame cam">
+<meta name="color-scheme" content="light dark">
+<title>Half-frame cam</title>
+<style>
+:root{--bg:#f4efe6;--fg:#1d1a16;--mut:#7a7165;--card:#e8e1d3;--acc:#c8861a;--line:#d6ccb8}
+@media (prefers-color-scheme:dark){:root{--bg:#161412;--fg:#f0e9dc;--mut:#9a9082;--card:#25211d;--acc:#e0a13a;--line:#3a342d}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,"Helvetica Neue",sans-serif}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 72px) env(safe-area-inset-left)}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 14px 10px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0 0 8px;letter-spacing:.04em;text-transform:uppercase}
+h1 small{color:var(--mut);font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px}
+.row{display:flex;gap:8px;align-items:center}
+select,button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+select{flex:1;min-width:0}
+button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
+button:disabled{opacity:.4}
+#grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:10px 12px}
+@media (min-width:700px){#grid{grid-template-columns:repeat(4,1fr)}}
+.th{position:relative;padding:0;border-radius:6px;overflow:hidden;background:var(--card);aspect-ratio:3/4;display:block;width:100%}
+.th.wide{grid-column:span 2;aspect-ratio:3/2}
+.th img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .25s}
+.th img.ok{opacity:1}
+.tag{position:absolute;left:6px;bottom:6px;font-size:11px;font-weight:700;background:rgba(0,0,0,.55);color:#fff;border-radius:5px;padding:1px 6px}
+.chk{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.3);display:none}
+.sel .chk{display:block}
+.th.picked .chk{background:var(--acc);border-color:var(--acc)}
+.th.picked .chk:after{content:"\2713";color:#fff;display:block;text-align:center;line-height:20px;font-size:15px;font-weight:700}
+.th.picked img{opacity:.6}
+#msg{padding:34px 22px;text-align:center;color:var(--mut)}
+#bar{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);background:var(--bg);border-top:1px solid var(--line);display:none;gap:8px;z-index:6}
+.sel #bar{display:flex}
+#bar button{flex:1}
+#view,#sheet{position:fixed;inset:0;z-index:20;background:#000;color:#fff;display:none;flex-direction:column}
+#view.open,#sheet.open{display:flex}
+.vtop,.vbot{display:flex;gap:8px;align-items:center;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px}
+.vbot{padding:8px 12px calc(env(safe-area-inset-bottom) + 10px);flex-direction:column;align-items:stretch}
+.vbot .row{justify-content:center}
+.vbot button,.vtop button{background:#2b2b2b;color:#fff;border-color:#444}
+.vbot button.pri{background:var(--acc);border-color:var(--acc)}
+.vtop .t{flex:1;text-align:center;font-size:14px;opacity:.85}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#stage img{max-width:100%;max-height:100%;object-fit:contain;-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto}
+.hint{font-size:13px;opacity:.7;text-align:center;margin:0 0 8px}
+#sheet{overflow:auto;-webkit-overflow-scrolling:touch}
+#sheetbody{padding:0 12px calc(env(safe-area-inset-bottom) + 24px)}
+#sheetbody img{width:100%;display:block;margin:0 0 14px;border-radius:4px;-webkit-touch-callout:default}
+#sheet .vtop{position:sticky;top:0;background:#000;z-index:2}
+a.btn{font:inherit;color:#fff;background:#2b2b2b;border:1px solid #444;border-radius:10px;padding:9px 12px;text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>Half-frame cam <small id="ssid"></small></h1>
+  <div class="row">
+    <select id="roll" aria-label="Roll"></select>
+    <button id="selbtn">Select</button>
+  </div>
+</header>
+<div id="msg">Loading&hellip;</div>
+<div id="grid"></div>
+<div id="bar">
+  <button id="all">All</button>
+  <button id="save" class="pri">Save</button>
+</div>
+
+<div id="view">
+  <div class="vtop"><button id="vx">Done</button><div class="t" id="vt"></div><a class="btn" id="vdl" download>File</a></div>
+  <div id="stage"><img id="vimg" alt=""></div>
+  <div class="vbot">
+    <p class="hint" id="vhint">Press and hold the picture, then tap <b>Add to Photos</b></p>
+    <div class="row"><button id="vp">&lsaquo; Prev</button><button id="vs" class="pri">Save to Photos</button><button id="vn">Next &rsaquo;</button></div>
+  </div>
+</div>
+
+<div id="sheet">
+  <div class="vtop"><button id="sx">Done</button><div class="t" id="st">Press and hold each picture, then Add to Photos</div></div>
+  <div id="sheetbody"></div>
+</div>
+
+<script>
+"use strict";
+var KIND={F:"Half-frame",D:"Diptych",M:"Montage",W:"Wiggle",P:"Potato"};
+var $=function(i){return document.getElementById(i)};
+var files=[],roll="",sel=false,picked={},cur=-1;
+var canShareFiles=false;
+try{var tf=new File([new Blob(["x"])],"a.jpg",{type:"image/jpeg"});canShareFiles=!!(navigator.canShare&&navigator.share&&navigator.canShare({files:[tf]}))}catch(e){}
+
+function j(u){return fetch(u,{cache:"no-store"}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+function label(f){var n=parseInt(f.n.slice(1,5),10);return (KIND[f.n[0]]||"Picture")+" "+n}
+function ext(f){return f.n.slice(-3)}
+function mb(b){return b>1048576?(b/1048576).toFixed(1)+" MB":Math.max(1,Math.round(b/1024))+" KB"}
+function url(p,f){return "/"+p+"/"+roll+"/"+f.n}
+
+function loadRolls(){
+  j("/api/rolls").then(function(d){
+    $("ssid").textContent=d.ssid||"";
+    var s=$("roll");s.innerHTML="";
+    d.rolls.forEach(function(r){var o=document.createElement("option");o.value=r.id;o.textContent=r.id.replace("ROLL","Roll ")+" \u00b7 "+(KIND[r.k]||"")+" \u00b7 "+r.n;s.appendChild(o)});
+    if(!d.rolls.length){$("msg").style.display="block";$("msg").innerHTML="No developed pictures yet.<br>On the camera: menu \u2192 DEVELOP, then share again.";$("grid").innerHTML="";return}
+    var keep=localStorageGet("roll");if(keep&&d.rolls.some(function(r){return r.id===keep}))s.value=keep;
+    loadRoll(s.value);
+  }).catch(function(){$("msg").style.display="block";$("msg").textContent="Cannot reach the camera. Are you still on its WiFi? Pull down to retry."});
+}
+function localStorageGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function localStorageSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+function loadRoll(id){
+  roll=id;localStorageSet("roll",id);picked={};updateBar();
+  $("msg").style.display="block";$("msg").textContent="Loading\u2026";$("grid").innerHTML="";
+  j("/r/"+id).then(function(d){
+    files=d.files;
+    $("msg").style.display=files.length?"none":"block";if(!files.length)$("msg").textContent="Empty roll.";
+    var g=$("grid");
+    files.forEach(function(f,i){
+      var b=document.createElement("button");b.className="th"+(f.n[0]==="D"||f.n[0]==="M"?" wide":"");b.type="button";
+      var im=new Image();im.loading="lazy";im.decoding="async";im.alt=label(f);im.onload=function(){im.className="ok"};im.src=url("t",f);
+      b.appendChild(im);
+      if(ext(f)!=="JPG"){var t=document.createElement("span");t.className="tag";t.textContent=ext(f);b.appendChild(t)}
+      var c=document.createElement("span");c.className="chk";b.appendChild(c);
+      b.onclick=function(){tap(i,b)};
+      g.appendChild(b);
+    });
+  }).catch(function(){$("msg").style.display="block";$("msg").textContent="Could not read this roll."});
+}
+
+function tap(i,b){
+  if(sel){if(picked[i]){delete picked[i];b.classList.remove("picked")}else{picked[i]=1;b.classList.add("picked")}updateBar();return}
+  openView(i);
+}
+function count(){return Object.keys(picked).length}
+function updateBar(){var n=count();$("save").textContent=n?"Save "+n:"Save";$("save").disabled=!n}
+$("selbtn").onclick=function(){
+  sel=!sel;document.body.classList.toggle("sel",sel);$("selbtn").classList.toggle("on",sel);$("selbtn").textContent=sel?"Cancel":"Select";
+  if(!sel){picked={};document.querySelectorAll(".picked").forEach(function(e){e.classList.remove("picked")})}
+  updateBar();
+};
+$("all").onclick=function(){
+  var all=count()===files.length;picked={};
+  document.querySelectorAll(".th").forEach(function(e,i){if(!all){picked[i]=1;e.classList.add("picked")}else e.classList.remove("picked")});
+  updateBar();
+};
+$("roll").onchange=function(){loadRoll(this.value)};
+
+/* ---- single picture viewer ---- */
+function openView(i){
+  if(i<0||i>=files.length)return;cur=i;var f=files[i];
+  $("view").classList.add("open");
+  $("vimg").src=url("f",f);
+  $("vt").textContent=label(f)+" \u00b7 "+mb(f.s);
+  $("vdl").href=url("f",f)+"?dl=1";
+  $("vdl").setAttribute("download",roll+"_"+f.n);
+  $("vhint").style.display="block";
+  $("vs").textContent=canShareFiles?"Save to Photos":"How to save";
+  history.replaceState(null,"","#"+roll+"-"+f.n);
+}
+function closeView(){$("view").classList.remove("open");$("vimg").removeAttribute("src");history.replaceState(null,"",location.pathname)}
+$("vx").onclick=closeView;
+$("vp").onclick=function(){openView(cur-1)};
+$("vn").onclick=function(){openView(cur+1)};
+$("vs").onclick=function(){if(canShareFiles)shareFiles([cur]);else alert("Press and hold the picture, then tap \u201cAdd to Photos\u201d.\n\nOr tap \u201cFile\u201d to save it to the Files app.")};
+document.addEventListener("keydown",function(e){if(!$("view").classList.contains("open"))return;if(e.key==="ArrowLeft")openView(cur-1);else if(e.key==="ArrowRight")openView(cur+1);else if(e.key==="Escape")closeView()});
+(function(){var x0=null,y0=null,st=$("stage");
+  st.addEventListener("touchstart",function(e){if(e.touches.length===1){x0=e.touches[0].clientX;y0=e.touches[0].clientY}else x0=null},{passive:true});
+  st.addEventListener("touchend",function(e){if(x0===null)return;var t=e.changedTouches[0],dx=t.clientX-x0,dy=t.clientY-y0;x0=null;
+    if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)openView(cur+(dx<0?1:-1))},{passive:true});
+})();
+
+/* ---- saving several pictures ---- */
+function shareFiles(idx){
+  $("save").disabled=true;
+  Promise.all(idx.map(function(i){var f=files[i];return fetch(url("f",f)).then(function(r){return r.blob()}).then(function(b){
+    return new File([b],roll+"_"+f.n,{type:ext(f)==="GIF"?"image/gif":(ext(f)==="PNG"?"image/png":"image/jpeg")})})}))
+  .then(function(fl){return navigator.share({files:fl})})
+  .catch(function(e){if(e&&e.name!=="AbortError")alert("Sharing failed: "+e)})
+  .then(function(){updateBar()});
+}
+$("save").onclick=function(){
+  var idx=Object.keys(picked).map(Number).sort(function(a,b){return a-b});
+  if(!idx.length)return;
+  if(canShareFiles){shareFiles(idx);return}
+  /* Plain HTTP pages cannot use the share sheet: show the chosen pictures full size to press-and-hold one by one. */
+  var body=$("sheetbody");body.innerHTML="";
+  idx.forEach(function(i){var im=new Image();im.decoding="async";im.alt=label(files[i]);im.src=url("f",files[i]);body.appendChild(im)});
+  $("st").textContent=idx.length+" picture"+(idx.length>1?"s":"")+" \u00b7 press and hold, Add to Photos";
+  $("sheet").classList.add("open");$("sheet").scrollTop=0;
+};
+$("sx").onclick=function(){$("sheet").classList.remove("open");$("sheetbody").innerHTML=""};
+
+loadRolls();
+</script>
+</body>
+</html>
